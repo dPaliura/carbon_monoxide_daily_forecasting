@@ -37,7 +37,7 @@ while (!is.authorized) {
     )
 }
 
-
+# Data-set resource is: https://www.kaggle.com/epa/carbon-monoxide
 # Making GET request using Kaggle API URL to obtain file URL
 r <- httr::GET('https://www.kaggle.com/api/v1/datasets/download/epa/carbon-monoxide/epa_co_daily_summary.csv', kgl_auth())
 
