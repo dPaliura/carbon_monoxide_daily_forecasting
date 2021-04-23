@@ -1,5 +1,7 @@
 library(httr)
+library(XML)
 library(jsonlite)
+library(rmarkdown)
 
 dataset.url <- 'https://www.kaggle.com/epa/carbon-monoxide'
 
@@ -23,14 +25,22 @@ json.str <- sub(')$', '', json.str)
 # Parse this string as JSON
 json <- parse_json(json.str)
 
-# Extract description and write it into .md file
+# Extract description
 description <- json$description
-write(description, file = 'docs/epa_co_daily_description.md')
+# Repair headers (no spacing between hash symbol and header title)
+description <- gsub('###', '### ', description, fixed = TRUE)
+
+# Write it into .md file
+write(description, file = 'markdowns/epa_co_daily_description.md')
+render(input = 'markdowns/epa_co_daily_description.md',
+       output_format = 'pdf_document',
+       output_dir = 'docs')
 
 # Sys.time()
 cat("\n\n",
     "Script was run at",
-    "2021-04-22 14:36:41 EEST")
+    "2021-04-23 12:17:43 EEST",
+    "\n")
 
 
 # Clearing environment variables
@@ -40,5 +50,7 @@ rm(dataset.url,
    json.str, json, description)
 # Disconnecting packages
 detach('package:httr', unload = TRUE)
+detach('package:XML', unload = TRUE)
 detach('package:jsonlite', unload = TRUE)
+detach('package:rmarkdown', unload = TRUE)
 # Done

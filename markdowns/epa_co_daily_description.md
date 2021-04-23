@@ -1,7 +1,7 @@
-###Context: 
+### Context: 
 Carbon Monoxide (CO) is a colorless, odorless gas that can be harmful when inhaled in large amounts. CO is released when something is burned. The greatest sources of CO to outdoor air are cars, trucks and other vehicles or machinery that burn fossil fuels. A variety of items in your home such as unvented kerosene and gas space heaters, leaking chimneys and furnaces, and gas stoves also release CO and can affect air quality indoors.
 
-###Content: 
+### Content: 
 The daily summary file contains data for every monitor (sampled parameter) in the Environmental Protection Agency (EPA) database for each day. This file will contain a daily summary record that is:
 
 1. The aggregate of all sub-daily measurements taken at the monitor.
@@ -69,8 +69,8 @@ Within the data file you will find these fields:
 
 
 
-###Acknowledgements:
+### Acknowledgements:
 These data come from the EPA and are current up to May 1, 2017. You can use Kernels to analyze, share, and discuss this data on Kaggle, but if you’re looking for real-time updates and bigger data, check out the data on BigQuery, too: [https://cloud.google.com/bigquery/public-data/epa](https://cloud.google.com/bigquery/public-data/ep).
 
-###Inspiration: 
+### Inspiration: 
 Breathing air with a high concentration of CO reduces the amount of oxygen that can be transported in the bloodstream to critical organs like the heart and brain. At very high levels, which are  possible indoors or in other enclosed environments, CO can cause dizziness, confusion, unconsciousness and death. Very high levels of CO are not likely to occur outdoors. However, when CO levels are elevated outdoors, they can be of particular concern for people with some types of heart disease. These people already have a reduced ability for getting oxygenated blood to their hearts in situations where the heart needs more oxygen than usual. They are especially vulnerable to the effects of CO when exercising or under increased stress. In these situations, short-term exposure to elevated CO may result in reduced oxygen to the heart accompanied by chest pain also known as angina.
