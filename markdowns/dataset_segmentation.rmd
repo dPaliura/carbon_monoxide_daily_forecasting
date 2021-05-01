@@ -1,0 +1,381 @@
+---
+title: "Dataset segmentation"
+author: "Daniel Paliura"
+date: "4/27/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r sourcing packages, include = FALSE}
+library(data.table)
+library(dplyr)
+```
+
+### Purpose
+
+Data-set "EPA CO daily summary" seems to not satisfy third principle of tidy
+data because it contains several entities in single table. There I gonna
+logically define which columns refers to special entities and separate the table
+in the file 'epa_co_daily_summary.csv' into few much smaller tables.
+
+### Diagnostic
+
+I previously viewed data so I set some numeric variables as factors and, also,
+figured out with dates.
+
+```{r reading data}
+cols_classes <- c(
+    "state_code" = "factor",
+    "county_code" = "factor",
+    "site_num" = "factor",
+    "parameter_code" = "factor",
+    "date_local" = "Date",
+    "method_code" = "factor",
+    "date_of_last_change" = "Date"
+)
+
+DT <- data.table(read.csv('../data/epa_co_daily_summary.csv',
+                          stringsAsFactors = TRUE,
+                          colClasses = cols_classes))
+```
+
+I will rely on data-set description at first. It is already available on GitHub [here](https://github.com/dPaliura/carbon_monoxide_daily_forecasting/blob/main/docs/epa_co_daily_description.pdf)
+and also at Kaggle data-set page
+[here](https://www.kaggle.com/epa/carbon-monoxide).
+Data preview is useful and so it is downwards. 
+
+```{r show data-set with str}
+str(DT)
+```
+
+We can see that all numeric variables are about measurements of CO. Also it
+looks like many factor variables are about location (sites location). I read
+data-set description a few times and found out that all geodata is about sites
+where monitors placed.
+
+There is such an hierarchy:
+Somewhere in some country there is site, which holds monitors fixing values of
+different substances (parameters). This site is placed in some county, in some
+city. Site can have many monitors to measure different parameters. And also it
+can be more than single monitor fixing same parameter, for insurance I guess.
+And this last defines variable ```poc``` which refers to different monitors for
+measuring same parameter.
+
+Variable ```parameter_name```, as ```parameter_name```,
+refers to measurements (measured parameter). They has single value, but I guess
+it's just because following data-set was taken from EPA data base. And they are
+measuring not only CO. Variable ```datum``` still appears to be strange. I read
+about its purposes and it's useful. It's about site location. Variables
+```sample_duration``` and ```polutant_standard``` are about the same and go to
+observations table. I shall make a remark: under observations and measurements I
+understand almost the same - fixed data about CO levels and about how it was
+fixed, so observations is not rows in my sense. Column ```cbsa_name``` says 
+about site itself. And last one ```date_of_last_change``` is something about
+measurement values changing in data base. It was said in description that it's
+about last change of numeric values. If codes are meant as not numeric, so it is
+right conclusion.
+
+Not described variables aren't need to be described. They say themselves for
+themselves.
+
+### Main division
+
+I gonna divide data-set into two tables at first: observations summary and sites
+info. Observations summary table will contain only data about measurements.
+It is clearer to say that sites info will represent only information about
+unique sites making measurements. It will contain information about sites
+placements from name of state to latitude and longitude.
+
+Also I must say about relation between tables. As it is did with data bases,
+two related tables must be tied with some key. It is needed because if I want to
+restore information about site, which measured some interesting value, than I
+have to know exactly which site it is. There is no such a variables as it would
+be in data base like ```site_id``` and ```measurement_id```. Second one is
+excessive because relation is one to many from sites table to observations table
+but I won't create such a variable, because I have fixed data. So I just have
+to find sensible set of variables providing uniqueness in table sites and add
+this variables also to table observations to provide relationship.
+
+
+So I decided such a division:
+
+1) Table observations has 17 variables:
+
+    * ```parameter_code```
+    * ```poc```
+    * ```parameter_name```
+    * ```sample_duration```
+    * ```pollutant_standard```
+    * ```date_local```
+    * ```units_of_measure```
+    * ```event_type```
+    * ```observation_count```
+    * ```observation_percent```
+    * ```arithmetic_mean```
+    * ```first_max_value```
+    * ```first_max_hour```
+    * ```aqi```
+    * ```method_code```
+    * ```method_name```
+    * ```date_of_last_change```
+
+2) Table sites has 12 variables:
+
+    * ```state_code```
+    * ```county_code```
+    * ```site_num```
+    * ```latitude```
+    * ```longitude```
+    * ```datum```
+    * ```local_site_name```
+    * ```address```
+    * ```state_name```
+    * ```county_name```
+    * ```city_name```
+    * ```cbsa_name```
+
+OK. Now I have to found set of variables suitable as primary key of table sites.
+I guess it could be ```state_code, county_code, site_num``` or
+```latitude, longitude```. To see if so I will create a subtable with
+mentioned 12 variables and unique rows. After that I will try to find such a
+combinations of variables that provide same number of unique observations as
+created subtable. Let's start:
+
+```{r separate sites table before changes of sites, echo = TRUE}
+# Uses dplyr package
+sites <- unique(DT %>% select(state_code, county_code, site_num,
+                              latitude, longitude, datum,
+                              local_site_name, address,
+                              state_name, county_name, city_name,
+                              cbsa_name))
+dim(sites)
+```
+
+Let's check mentioned two combinations, whether they cover all sites. I shall
+try use ```latitude``` and ```longitude``` without and with ```datum``` to check
+how is it needed in key.
+
+```{r view different sets of uniqueness keys sets, echo = TRUE}
+first_key_uniq <- unique(DT %>% select(state_code, county_code, site_num))
+second_key_uniq <- unique(DT %>% select(latitude, longitude))
+
+dim(first_key_uniq)
+dim(second_key_uniq)
+```
+
+They both don't cover all unique elements. I propose to use also ```datum```
+variable because it has short values for difference to ```address``` and 
+different names.
+
+```{r view different sets of uniqueness keys sets with datum, echo = TRUE}
+first_key_uniq <- unique(DT %>% select(state_code, county_code, site_num, datum))
+second_key_uniq <- unique(DT %>% select(latitude, longitude, datum))
+
+dim(first_key_uniq)
+dim(second_key_uniq)
+```
+It wasn't expected that ```datum``` variable in key variables set will make set
+with codes better than set with coordinates. Now I can check such an
+observations in sites table that are different but has not unique key variables.
+I decided to choose set of variables with codes as key due to pair of reasons:
+
+1) Logical purposes: codes could form something like and ID or hash, so it makes
+    sense. And also it is intuitive - everyone, I guess, will search site in
+    sites table by state and county codes an site number instead of location
+    coordinates.
+2) Storage purpose: It might not be a rule, but let's take a look on how key
+    variables are written inside .csv file:
+    ```state_code, county_code, site_num```: "XX,XXX,XXXX" - 11 characters;
+    ```latitude, longitude```: "???X.XXXXXX,???X.XXXXXX" - from 15 to 21 characters.
+    Here 'X' means a number, '?' means optional symbol (could be sign '-' or
+    number). ```datum``` is ignored because it does not make any valuable
+    difference in both cases.
+So set ```state_code, county_code, site_num, datum``` will be primary key to
+chose unique site and will be used as foreign key in observations table. Now
+we have to find out why this set doesn't provide complete uniqueness.
+
+To find it out, let's take a look at different sites with single key:
+To do so I will make a loop over all unique values for chosen set, I mean,
+over data-frame ```first_key_uniq```. I shall rename it. Let's do so and see
+searched observations (I will call them ```confuses```):
+
+```{r find sites written different with same uniqueness key set}
+confuses <- NULL
+
+keys <- first_key_uniq
+
+for (i in 1:nrow(keys)){
+    key <- keys[i,]
+    uniques <- filter(sites,
+                      sites$state_code  == key$state_code &
+                      sites$county_code == key$county_code &
+                      sites$site_num    == key$site_num &
+                      sites$datum       == key$datum)
+    if (nrow(uniques) > 1){
+        confuses <- rbind(confuses, uniques)
+    }
+}
+
+print(confuses)
+```
+
+There is just an errors of data-set formation.
+Let's fix data successively. First pair differs only by ```latitude``` and
+```longitude```. We have to check which value is mistake
+
+```{r first confuse summarise}
+cond1 <- DT$state_code==44 & DT$county_code==7 & DT$site_num==1010 & DT$datum=="NAD83"
+filt <- filter(DT, cond1)
+
+filt %>%
+mutate(latitude=as.character(latitude)) %>%
+group_by(latitude) %>%
+summarise(count=n(),
+          first_date=min(date_local),
+          last_date=max(date_local)) %>%
+print
+```
+
+I guess, latitude changed due to tectonic plates movements and it was fixed 
+at very beginning of 2012. I guess it won't make a big problem if I set
+coordinates as old values. I checked this site in Google Maps and it says that
+it placed 41.84188 by latitude nowadays. It seems to be not a big issue.
+So I will change latitude and longitude after 2011 to values as before 2012.
+
+```{r first confuse fix, echo=TRUE}
+cond1 <- DT$state_code==44 & DT$county_code==7 &
+         DT$site_num==1010 & DT$datum=="NAD83"
+new_latitude <- DT$latitude
+new_latitude[cond1] <- 41.841573
+new_longitude <- DT$longitude
+new_longitude[cond1] <- -71.360770
+```
+
+Second pair is OK, but first observation don't have a ```local_site_name```
+value, so I just gonna add it:
+
+```{r second confuse fix, echo=TRUE}
+cond2 <- DT$state_code==47 & DT$county_code==157 &
+         DT$site_num==24 & DT$datum=="WGS84"
+new_local_site_name <- DT$local_site_name
+new_local_site_name[cond2] <- "Alabama Ave. Station"
+```
+
+Third pair has different addresses. Such and addresses looks very confusing to
+me. I will try to figure out more actual one. Also Google Maps just confusing
+me somewhy. I guess it would be correct something like
+
+```{r third confuse summarise}
+cond3 <- DT$state_code==12 & DT$county_code==57 &
+         DT$site_num==3002 & DT$datum=="WGS84"
+
+filt <- filter(DT, cond3)
+
+filt %>%
+group_by(address) %>%
+summarise(count=n(),
+          first_date=min(date_local),
+          last_date=max(date_local)) %>%
+print
+```
+
+I gonna use last address. Also it has number 32527, which referred to more
+actual point according to coordinates, when searching "1167 NORTH DOVER ROAD".
+So I change address to latest:
+
+```{r third confuse fix, echo=TRUE}
+cond3 <- DT$state_code==12 & DT$county_code==57 &
+         DT$site_num==3002 & DT$datum=="WGS84"
+new_address <- DT$address
+new_address[cond3] <- "1167 N Dover Road Valrico FL 33527"
+```
+
+Fourth pair has regular coordinates confuse. Bless God for not many such ones.
+
+```{r fourth confuse summarise}
+cond4 <- DT$state_code==29 & DT$county_code==510 &
+         DT$site_num==85 & DT$datum=="NAD83"
+filt <- filter(DT, cond4)
+
+filt %>%
+mutate(latitude=as.character(latitude)) %>%
+group_by(latitude) %>%
+summarise(count=n(),
+          first_date=min(date_local),
+          last_date=max(date_local)) %>%
+print
+```
+
+Difference is small and It seems to me that it doesn't matter what change:
+old values to new or new values to old. Difference is at fifth and fourth
+numbers after point. I will do as I done in previous case: change old values to
+a new values.
+
+```{r fourth confuse fix, echo=TRUE}
+cond4 <- DT$state_code==29 & DT$county_code==510 &
+         DT$site_num==85 & DT$datum=="NAD83"
+
+new_latitude[cond4] <- 38.656498
+new_longitude[cond4] <- -90.198646
+```
+
+And last one pair. Google Maps shows different places and it can be because of
+monitor relocation. Let's see summary statistics:
+
+```{r fifth confuse summarise}
+cond5 <- DT$state_code==12 & DT$county_code==86 &
+         DT$site_num==34 & DT$datum=="NAD83"
+filt <- filter(DT, cond5)
+
+filt %>%
+mutate(longitude=as.character(longitude)) %>%
+group_by(longitude) %>%
+summarise(count=n(),
+          first_date=min(date_local),
+          last_date=max(date_local)) %>%
+print
+```
+
+It is more observations are before 2012, but in this case I gonna set values of
+2012 and after years because it is set up an local site name and address is
+foundable via Google Maps, so:
+
+```{r fifth confuse fix, echo=TRUE}
+cond5 <- DT$state_code==12 & DT$county_code==86 &
+         DT$site_num==34 & DT$datum=="NAD83"
+
+new_longitude[cond5] <- -80.399722
+new_local_site_name[cond5] <- "KENDALL"
+new_address[cond5] <- "	9015 SW 127th Ave Miami FL 33186"
+```
+
+And last thing - set new values into table:
+
+```{r data-set change with provided fixes}
+DT$latitude <- new_latitude
+DT$longitude <- new_longitude
+DT$local_site_name <- new_local_site_name
+DT$address <- new_address
+```
+
+check now for unique sites:
+
+```{r check key for providing a uniqueness}
+sites <- DT %>% 
+    select(state_code, county_code, site_num,
+           latitude, longitude, datum,
+           local_site_name, address,
+           state_name, county_name, city_name, cbsa_name) %>%
+    unique
+
+dim(sites)
+dim(unique(select(sites,
+                  state_code, county_code, site_num, datum)))
+```
+
+Numbers of rows are the same so I separated table of sites.
+All code will be moved into script. Current R Markdown does not write new files.
+
