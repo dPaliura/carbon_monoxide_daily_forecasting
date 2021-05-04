@@ -7,6 +7,7 @@ output: pdf_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_knit
 ```
 
 ```{r sourcing packages, include = FALSE}
@@ -14,14 +15,14 @@ library(data.table)
 library(dplyr)
 ```
 
-### Purpose
+## Purpose
 
 Data-set "EPA CO daily summary" seems to not satisfy third principle of tidy
 data because it contains several entities in single table. There I gonna
 logically define which columns refers to special entities and separate the table
 in the file 'epa_co_daily_summary.csv' into few much smaller tables.
 
-### Diagnostic
+## Diagnostic
 
 I previously viewed data so I set some numeric variables as factors and, also,
 figured out with dates.
@@ -37,7 +38,7 @@ cols_classes <- c(
     "date_of_last_change" = "Date"
 )
 
-DT <- data.table(read.csv('../data/epa_co_daily_summary.csv',
+DT <- data.table(read.csv('data/epa_co_daily_summary.csv',
                           stringsAsFactors = TRUE,
                           colClasses = cols_classes))
 ```
@@ -81,7 +82,7 @@ right conclusion.
 Not described variables aren't need to be described. They say themselves for
 themselves.
 
-### Main division
+## Division with key variables
 
 I gonna divide data-set into two tables at first: observations summary and sites
 info. Observations summary table will contain only data about measurements.
@@ -99,6 +100,7 @@ but I won't create such a variable, because I have fixed data. So I just have
 to find sensible set of variables providing uniqueness in table sites and add
 this variables also to table observations to provide relationship.
 
+### Main division
 
 So I decided such a division:
 
@@ -139,7 +141,7 @@ So I decided such a division:
 
 OK. Now I have to found set of variables suitable as primary key of table sites.
 I guess it could be ```state_code, county_code, site_num``` or
-```latitude, longitude```. To see if so I will create a subtable with
+```latitude, longitude```. To see if so I will create a sub-able with
 mentioned 12 variables and unique rows. After that I will try to find such a
 combinations of variables that provide same number of unique observations as
 created subtable. Let's start:
@@ -317,7 +319,6 @@ a new values.
 ```{r fourth confuse fix, echo=TRUE}
 cond4 <- DT$state_code==29 & DT$county_code==510 &
          DT$site_num==85 & DT$datum=="NAD83"
-
 new_latitude[cond4] <- 38.656498
 new_longitude[cond4] <- -90.198646
 ```
@@ -346,24 +347,19 @@ foundable via Google Maps, so:
 ```{r fifth confuse fix, echo=TRUE}
 cond5 <- DT$state_code==12 & DT$county_code==86 &
          DT$site_num==34 & DT$datum=="NAD83"
-
 new_longitude[cond5] <- -80.399722
 new_local_site_name[cond5] <- "KENDALL"
-new_address[cond5] <- "	9015 SW 127th Ave Miami FL 33186"
+new_address[cond5] <- "9015 SW 127th Ave Miami FL 33186"
 ```
 
-And last thing - set new values into table:
+And last thing - set new values into table and divide table into two:
 
-```{r data-set change with provided fixes}
+```{r data-set change with provided fixes, echo=TRUE}
 DT$latitude <- new_latitude
 DT$longitude <- new_longitude
 DT$local_site_name <- new_local_site_name
 DT$address <- new_address
-```
 
-check now for unique sites:
-
-```{r check key for providing a uniqueness}
 sites <- DT %>% 
     select(state_code, county_code, site_num,
            latitude, longitude, datum,
@@ -371,11 +367,86 @@ sites <- DT %>%
            state_name, county_name, city_name, cbsa_name) %>%
     unique
 
+observations <- DT %>% 
+    select(-latitude, -longitude, -datum,
+           -local_site_name, -address,
+           -state_name, -county_name, -city_name, -cbsa_name)
+```
+
+check now for unique sites:
+
+```{r check key for providing a uniqueness, echo=TRUE}
 dim(sites)
 dim(unique(select(sites,
                   state_code, county_code, site_num, datum)))
 ```
 
 Numbers of rows are the same so I separated table of sites.
-All code will be moved into script. Current R Markdown does not write new files.
+All code will be moved into script. Current R Markdown does not write any files.
 
+### Subdivision
+
+Second step: to divide table of observations into two. I found out that table
+contains information both of measurements and about method of measurements.
+I expect that variable ```method_code``` will be enough to divide observations
+table into mentioned twain. So check it:
+
+```{r create subtable methods, echo=TRUE}
+methods <- observations %>%
+    select(method_code, method_name, 
+           parameter_code, parameter_name, units_of_measure,
+           sample_duration, pollutant_standard) %>%
+    unique
+
+print(dim(methods))
+print(length(unique(methods$method_code)))
+```
+
+So ```method_code``` variable is enough. Let's write observations table itself
+withouts methods info:
+
+```{r}
+observations <- observations %>%
+    select(-method_name, 
+           -parameter_code, -parameter_name, -units_of_measure,
+           -sample_duration, -pollutant_standard)
+```
+
+## Division with ID's
+
+This division will appear first in script and it will save data untouched.
+I will appoint unique numbers to unique rows in sites table just before changing
+values in columns. And also I won't include codes into observations table. I
+will add special column ```site_id``` instead. And same thing I will do for
+methods. I will replace ```method_code``` with ```method_id```.
+
+## Conclusion
+
+I made two data-set divisions. In first one I violated principle of data tiding.
+I rewrote some values in table. To fix such a violation I made also data
+division using IDs. To figure out sense of this division I reveal comaprisons.
+
+### Comparison
+
+And what we have now? Let's see dimensions:
+
+```{r}
+print(dim(DT))
+
+print(dim(observations))
+print(dim(sites))
+print(dim(methods))
+```
+
+Size of data reduced twice in sense of dimensions. What about memory?
+
+```{r}
+print(object.size(DT))
+
+print(object.size(observations))
+print(object.size(sites))
+print(object.size(methods))
+```
+
+The size decreased almost twice. It was worth it, I think. I expect better work
+with smaller data-set.
