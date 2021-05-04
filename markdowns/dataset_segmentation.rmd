@@ -430,7 +430,7 @@ division using IDs. To figure out sense of this division I reveal comaprisons.
 
 And what we have now? Let's see dimensions:
 
-```{r}
+```{r compare dimensions of initial table and new tables, echo=TRUE}
 print(dim(DT))
 
 print(dim(observations))
@@ -440,7 +440,7 @@ print(dim(methods))
 
 Size of data reduced twice in sense of dimensions. What about memory?
 
-```{r}
+```{r compare object sizes of initial table and new tables, echo=TRUE}
 print(object.size(DT))
 
 print(object.size(observations))
