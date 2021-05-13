@@ -1,0 +1,341 @@
+---
+title: "Exploratory analysis of EPA CO daily"
+author: "Daniel Paliura"
+date: "4/23/2021"
+output: pdf_document
+urlcolor: brown
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Introduction
+
+This document is created to explain variables' behavior in the data set 
+"EPA CO Daily". Each variable will be explained by type: whether it quantitative
+or qualitative. And if quantitative, so whether it discrete or continuous, else
+if qualitative, then whether it compatible. Also, we will see how values are
+distributed and whether data has any ejections and anomalies. 
+
+As data set was separated into 3 parts, then I will work with 3 tables.
+I will explore variables from each table separately.
+
+## Analysis
+
+### Preparation
+
+I use following R packages:
+
+```{r source libraries, echo=TRUE}
+library(dplyr, quietly = TRUE)
+library(lubridate, quietly = TRUE)
+library(nortest)
+```
+
+First of all - download data. I will take tables connected with IDs:
+
+```{r read data, echo=TRUE}
+folder <- "../data/parted/with_ids/"
+
+na.strs <- c('NA', '', '-')
+
+observs <- read.csv(paste0(folder,"observations.csv"), na.strings=na.strs)[,-1]
+sites   <- read.csv(paste0(folder,'sites.csv'), na.strings=na.strs)[,-1]
+methods <- read.csv(paste0(folder,'methods.csv'), na.strings=na.strs)[,-1]
+
+rm(folder, na.strs)
+```
+
+### Table with observations
+
+Data looks next way:
+
+```{r observations preview, echo=TRUE}
+rbind(
+    head(observs, 2),
+    tail(observs, 2)
+    )
+```
+
+From a look I can recognize that:
+
+* ```date_local``` - variable of class date
+* ```poc``` - looks like discrete quantitative feature, but it's factor
+    believing to code book given to EPA CO Daily
+* ```event_type``` - word 'type' almost always says about factor feature
+* ```observaion_count``` - quantitative discrete
+* ```observation_percent``` - quantitative and might be continuous but could be
+    discrete
+* ```arithmetic_mean``` - quantitative continuous
+* ```first_max_value``` - quantitative continuous
+* ```first_max_hour``` - quantitative discrete, I guess
+* ```aqi``` - quantitative discrete
+* ```date_of_last_change``` - date feature
+* ```site_id``` - factor
+* ```method_id``` - factor
+
+There are NAs in ```aqi``` (Air Quality Index). So check for NA presence:
+
+```{r observations check for NAs, echo=TRUE}
+summarise_each(observs, anyNA)
+```
+
+Only ```aqi``` contains NAs.
+
+Last one look - at summary of data set:
+
+```{r observations summary, echo=TRUE}
+summary(observs)
+```
+
+There is a negative minimum value in column ```arithmetic_mean```, but it can't
+be so, because monitors shouldn't show negative values - units per million can't
+be negative.
+
+We must remember this issue onward.
+
+#### Feature ```date_local```
+
+As I considered, it is class ```Date```. What the range of dates?
+
+```{r observations date_local convert to Date class, echo=TRUE}
+observs$date_local <- as.Date(observs$date_local)
+
+range(observs$date_local)
+```
+
+Measurements begins directly from 1990 and ends after 4 months from 2017 begin.
+And dates distributed by years next way:
+
+```{r bar chart for date_local years}
+observs$date_local %>% year %>% as.factor %>%
+    plot(
+        main = "Amount of observations per each year",
+        ylab = "Observations amount",
+        xlab = "Year"
+    )
+```
+
+There is small increase of observations from begin to middle of 90-th
+(5-6 years) and after that decrease of observations amount between middle of
+90-s and 2010 year. After that rapid decreasing stops. There's also few
+observations in 2017 because measurements was taken not for entire year, but for
+4 months. But it looks like amount of observations in 2017 less than third part
+of amount of observations in whole 2016 year.
+Such a differences in amount of observations in different years could be caused
+by change of numbers of monitors at sites or/and by amount of sites measuring
+CO in different years.
+
+The questions to this variable are next:
+
+* **How amount of measuring sites differs in different years?**
+* **Does number of monitors at same sites (unique POC count) changes in time?**
+
+#### Feature ```poc```
+
+POC is "Parameter Occurrence Code" - number used to distinguish different
+instruments measuring the same parameter at the same site.
+I considered it as factor, so change class respective:
+
+```{r observations poc uniques, echo=TRUE}
+observs$poc <- as.factor(observs$poc)
+unique(observs$poc)
+```
+
+OK. We will consider it as factor. Amounts of observations for each ```poc```
+value are next:
+
+```{r observs POC counts, echo=TRUE}
+count(observs, poc)
+```
+
+It looks interesting that amounts are decreasing by ```poc``` increasing but
+there are much more observations with ```poc == 9``` than it expected. Why so?
+I guess ```poc``` is just a number of monitor in site, like next: if site has 3
+monitors, then I guess first one has POC 1, second - 2, and third one has POC 3.
+But as we can see there are no values 6, 7, and 8. Why so? Is there any order
+present? I will recognize these values by their sense - separators of
+measurements from different monitors at the same sites.
+
+So:
+**Why poc values 6, 7, and 8 aren't present?**\
+**Why there are more values with poc value 9 than for values 4 and 5?**
+
+#### Feature ```event_type```
+
+Do the same as in previous - change class to factor and see counts:
+
+```{r observs event_type analysis, echo=TRUE}
+observs$event_type <- as.factor(observs$event_type)
+
+count(observs, event_type)
+```
+
+Only 130 observations was written without measures during exceptional event.
+And almost all exceptional events include measurements taken during events took
+place. So information about events mostly fixed in data set. Overwhelming
+majority of observations was taken at normal days without exceptional events.
+**It would be interesting to check next:**
+* **Whether event at some day is written into each observation at same day**
+* **Whether data significantly differs by event type factor**
+    **(regression analysis)**
+* **Do events change values in perspective? It can be understood as would**
+    **exceptional event presence increases forecast's error compared to**
+    **forecasting without such event**
+
+#### Feature ```observaion_count```
+
+As I mentioned, this variable is discrete quantitative - integer in this case.
+Amounts of unique values shown on next plot
+
+```{r observs observation_count plots od counts}
+count_obs_cnt <-  count(observs, observation_count)
+plot(
+    count_obs_cnt[1:12,],
+    main = "Amount of observations count unique values",
+    type = "b", pch = 20
+)
+grid()
+
+plot(
+    count_obs_cnt[13:24,],
+    main = "Amount of observations count unique values",
+    type = "b", pch = 20
+)
+grid()
+
+count_obs_cnt
+rm(count_obs_cnt)
+```
+
+There is a hump at value 2. I guess, it's because data contains two ways of
+measuring - every hour and 8-hour measuring. And if single measurement
+takes 8 hours then it can't be performed more that thrice a day. Maybe such
+method has some issues and frequently performed twice a day. It's my guess.
+
+I will check it by analyzing next variable.
+
+Also I separated single plot into two to notice this. On second plot we see
+exponential growth, where significantly high amounts appears after value 20.
+So I can say that in almost all cases it taken not less than 20 observations per
+day.
+
+#### Feature ```observation_percent```
+
+It can be recognized both as discrete and continuous quantitative depending on
+purpose. We can use this variables in some methods that expects only continuous
+values and also can recognize it like discrete if there is need. And need is
+there, really. I guessed that hump at value 2 in last plot of observations_count
+amounts was because 8-hour method was used.
+Because of $8/24 = 1/3 \approx0.33 = 33\%$ and $2*8/24 = 2/3 \approx0.67 = 67\%$
+I can see how many values of this variables are 33 and 67 to see whether there
+are humps like at previous plot which respective to ```observation_count``` with 
+values 1 and 2 referred to 8-hour measuring method:
+
+```{r find out how many 8-hour observations counted once and twice}
+count_obs_prcnt <- count(observs, observation_percent)
+
+count_obs_prcnt
+```
+
+Let's see plot of it:
+
+```{r plotting amounts of observation_percent uniques}
+slice <- 17
+
+plot(
+    count_obs_prcnt[1:slice,],
+    main = "Amount of unique values of observation_percent",
+    type = 'b', pch=20,
+    col = 1 + count_obs_prcnt$observation_percent[1:slice] %in% c(33, 67)
+    )
+grid()
+
+plot(
+    count_obs_prcnt[slice:24,],
+    main = "Amount of unique values of observation_percent",
+    type = 'b', pch=20
+)
+grid()
+
+rm(count_obs_prcnt)
+```
+
+The hump at percent 8 is remained and there is no any humps for percents 33 and
+67 (red points), so my guess is a mistake.
+
+Okay, does it really matter?
+I leave question for a future analysis:
+**Why amount of observation_percent value equals to 8 is greater than amounts**
+**of neighbor values 4, 13, 17, 21, 25?**
+
+#### Feature ```arithmetic_mean```
+
+This variable is continuous quantitative, so we shall see histogram and boxplot:
+
+```{r observs arithmetic_mean plotting}
+hist(observs$arithmetic_mean, breaks = "FD",
+     main = "Histogram of feature arithmetic_mean")
+boxplot(observs$arithmetic_mean,
+         main = "Box chart of feature arithmetic_mean")
+```
+
+Bot histogram and box chart are flattened, because there are few observations
+with values much more than first 3 quartiles. So I should additionally view
+these plots for filtered data. I remain values not greater than 5 to look closer.
+
+```{r observs arithmetic_mean less than 5 plotting}
+filtered <- observs$arithmetic_mean[observs$arithmetic_mean <= 5]
+
+
+hist(filtered, breaks = "FD",
+     main = "Histogram of feature arithmetic_mean not greater than 5")
+boxplot(filtered,
+         main = "Box chart of feature arithmetic_mean not greater than 5")
+
+rm(filtered)
+```
+
+OK, now it looks like logistic distribution. I should try to logarithm these
+values and check for normality. But at first I must note that feature contains
+negative values:
+
+```{r observs arithmetic_mean positives and negatives}
+positive_condition <- observs$arithmetic_mean > 0
+
+arith_mean_nonpos <- observs$arithmetic_mean[!positive_condition]
+arith_mean_pos <- observs$arithmetic_mean[positive_condition]
+log_arith_mean_pos <- log(arith_mean_pos)
+
+cat("There are", length(arith_mean_nonpos),
+    "non-positive values in aritmetic_mean")
+
+hist(log_arith_mean_pos, breaks = "FD",
+     main = "Histogram of logarithm of positive arithmetic_mean")
+
+ad.test(log_arith_mean_pos)
+cvm.test(log_arith_mean_pos)
+
+rm(positive_condition, arith_mean_nonpos, arith_mean_pos, log_arith_mean_pos)
+```
+
+Really, logarithmic data looks very messy and doesn't look similar to normal.
+Statistics and p-values of Anderson-Darling and Cramer-von Mises test says
+that distribution not normal anyway. The reason might be in data mix. What would
+data looked like in case of one or few sites or states, but not all data set.
+
+So I would like to answer next questions:
+
+* **Why feature arithmetic_mean contains negative values?**
+* **Is values distributed (log)normally for separate sites/countries/states?**
+
+#### Feature ```method_id``` 
+
+```{r}
+method_8_hour_id <- methods$method_id[which(is.na(methods$method_code))]
+count(observs, method_id)
+sum(observs$method_id==4)/nrow(observs)
+```
+
+
