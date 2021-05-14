@@ -418,7 +418,7 @@ hist(
     clear_aqi,
     breaks = "FD",
     xlim = c(min(clear_aqi), 100),
-    main = "Histogram of aqi cut off to value 100"
+    main = "Histogram of aqi cut off to value 100",
     )
 
 rm(clear_aqi)
@@ -458,14 +458,16 @@ much greater than at second one.
 So how it looks like?
 
 ```{r hist for observs site_id}
-observs$site_id %>% as.factor %>% plot(main="Distribution of site_id")
+observs$site_id %>% as.factor %>% 
+    plot(main="Distribution of site_id",
+         xlab = "site_id", ylab = "Amount of obsevations")
 ```
 
 Just a mess. We can notice that some sites made less than 5000 and even 2000
 of observations.
 Let's see sample of observation amounts summaries:
 
-```{r, see counts of site_id}
+```{r see counts of site_id}
 sample <- count(observs, site_id)
 
 summarise(sample, 
@@ -490,7 +492,8 @@ about high variety of observations numbers at sites.
 And, finally, box chart to quick view:
 
 ```{r boxplot of observations amounts per site}
-boxplot(sample$n)
+boxplot(sample$n,
+        main = "Boxplot of observations amounts per site")
 ```
 
 Yeah! It looks directly as I imagined. I think, few points over top mustache
@@ -540,8 +543,140 @@ That's all for this table.
 
 ### Table with Sites information
 
+This table contains nothing more than just information about sites, mostly about
+location. Not Available values can appear in some columns. Check for that:
 
+```{r sites check columns for NAs, echo=TRUE}
+summarise_each(sites, anyNA)
+```
 
+NAs present in features ```cbsa_name``` and ```local_site_name```, which isn't
+critical, because these features are very variate and contains individual names.
+
+Data preview:
+
+```{r sites preview, echo=TRUE}
+rbind(
+    head(sites, 2),
+    tail(sites, 2)
+)
+```
+
+#### Features ```state_code``` and ```state_name```\
+
+Both factors. This two variables unambiguously correspond to each other.
+It's interesting to see how sites are distributed by states:
+
+```{r arranged counts of sites by states, echo=TRUE}
+sites$state_code <- as.factor(sites$state_code)
+sites$state_name <- as.factor(sites$state_name)
+
+sites %>% count(state_name) %>% arrange(desc(n))
+```
+
+Oh this California.
+
+**It would be great to see how values differs in different states**
+
+#### Features ```county_code``` and ```county_name```\
+
+These variables are similar to previous pair.
+
+```{r hist of counties, echo=TRUE}
+sites$county_code <- as.factor(sites$county_code)
+sites$county_name <- as.factor(sites$county_name)
+
+plot(sites$county_code,
+     main = "Histogram of sites amounts in counties by codes",
+     xlab = "county_code", ylab = "Amount of sitesa")
+```
+
+Difference in next: counties are located in stated, and so there are more
+counties, than states. And variance of sites numbers is smaller than by states.
+
+#### Feature ```site_num```\
+
+```{r sites site_num histogram}
+sites$site_num <- as.factor(sites$site_num)
+
+plot(sites$site_num,
+     main = "Histogram of site_num counts of unique values",
+     xlab = "site_num", ylab = "Amount")
+```
+
+Mess and nothing else. It doesn't seem to me that it's sensible to analyze this
+variable, because it's not very informative.
+
+#### Feature ```city_name```\
+
+This variable is factor. How many factors are present?
+
+```{r sites city_name uniques, echo=TRUE}
+sites$city_name <- as.factor(sites$city_name)
+
+length(unique(sites$city_name))
+```
+
+There is to much cities to see if there significant difference between factors.
+Only thing I should do - is to check each city for measurements normality.
+
+#### Feature ```address```\
+
+This feature I don't plan to use in analysis.
+
+Number of unique addresses:
+
+```{r number of unique addresses, echo=TRUE}
+length(unique(sites$address))
+```
+
+Almost all values of this feature are unique.
+
+#### Feature ```cbsa_name```\
+
+CBSA is Core Bases Statistical Area. This variable can affect some values. 
+Some information about feature:
+
+```{r info about cbsa_name}
+cat("Number of unique values is", length(unique(sites$cbsa_name)), "\n")
+
+counts <- count(sites, cbsa_name)
+counts_sorted <- counts %>% arrange(desc(n))
+
+rbind(
+    head(counts_sorted),
+    tail(counts_sorted)
+)
+```
+
+I really have to take a look at differences between each CBSA as group.
+**Does distributions significantly different by factor cbsa_name?**
+
+#### Feature ```local_site_name```\
+
+I won't consider this variable in analysis.
+
+```{r amount of local_site_name uniques}
+cat(
+    "Amount of unique values is",
+    sites$local_site_name %>% unique %>% length(),
+    "and amount of NAs is",
+    sum(is.na(sites$local_site_name)),
+    '\n'
+)
+
+```
+
+So greater part of this feature values are unique character or not available. 
+
+#### Features ```latitude```, ```longitude``` and ```datum```\
+
+Not now, really.
+
+#### Feature ```site_id```\
+
+This variable generated to be a primary key in this table. And it provides
+relations with table of observations.
 
 ### Table with Methods information
 
@@ -564,7 +699,7 @@ method with 8-hour measurements.
 
 This one might be a factor. And amounts om methods with same names are:
 
-```{r, count methods method_name}
+```{r count methods method_name}
 count(methods, method_name)
 ```
 
