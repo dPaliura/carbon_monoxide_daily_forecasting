@@ -47,7 +47,7 @@ methods <- read.csv(paste0(folder,'methods.csv'), na.strings=na.strs)[,-1]
 rm(folder, na.strs)
 ```
 
-### Table with observations
+### Table with Observations
 
 Data looks next way:
 
@@ -95,7 +95,7 @@ be negative.
 
 We must remember this issue onward.
 
-#### Feature ```date_local```
+#### Feature ```date_local```\
 
 As I considered, it is class ```Date```. What the range of dates?
 
@@ -132,7 +132,7 @@ The questions to this variable are next:
 * **How amount of measuring sites differs in different years?**
 * **Does number of monitors at same sites (unique POC count) changes in time?**
 
-#### Feature ```poc```
+#### Feature ```poc```\
 
 POC is "Parameter Occurrence Code" - number used to distinguish different
 instruments measuring the same parameter at the same site.
@@ -162,7 +162,7 @@ So:
 **Why poc values 6, 7, and 8 aren't present?**\
 **Why there are more values with poc value 9 than for values 4 and 5?**
 
-#### Feature ```event_type```
+#### Feature ```event_type```\
 
 Do the same as in previous - change class to factor and see counts:
 
@@ -184,7 +184,7 @@ majority of observations was taken at normal days without exceptional events.
     **exceptional event presence increases forecast's error compared to**
     **forecasting without such event**
 
-#### Feature ```observaion_count```
+#### Feature ```observaion_count```\
 
 As I mentioned, this variable is discrete quantitative - integer in this case.
 Amounts of unique values shown on next plot
@@ -221,7 +221,7 @@ exponential growth, where significantly high amounts appears after value 20.
 So I can say that in almost all cases it taken not less than 20 observations per
 day.
 
-#### Feature ```observation_percent```
+#### Feature ```observation_percent```\
 
 It can be recognized both as discrete and continuous quantitative depending on
 purpose. We can use this variables in some methods that expects only continuous
@@ -265,12 +265,15 @@ rm(count_obs_prcnt)
 The hump at percent 8 is remained and there is no any humps for percents 33 and
 67 (red points), so my guess is a mistake.
 
+It seems that no matter whether method 1-hour or 8-hour it can be different
+number of observations.
+
 Okay, does it really matter?
 I leave question for a future analysis:
 **Why amount of observation_percent value equals to 8 is greater than amounts**
 **of neighbor values 4, 13, 17, 21, 25?**
 
-#### Feature ```arithmetic_mean```
+#### Feature ```arithmetic_mean```\
 
 This variable is continuous quantitative, so we shall see histogram and boxplot:
 
@@ -330,12 +333,290 @@ So I would like to answer next questions:
 * **Why feature arithmetic_mean contains negative values?**
 * **Is values distributed (log)normally for separate sites/countries/states?**
 
-#### Feature ```method_id``` 
+#### Feature ```first_max_value```\
 
-```{r}
-method_8_hour_id <- methods$method_id[which(is.na(methods$method_code))]
-count(observs, method_id)
-sum(observs$method_id==4)/nrow(observs)
+Let's see box chart for values of this variable at first.
+
+```{r observs first_max_value boxplot}
+boxplot(
+    observs$first_max_value,
+    main = "Boxplot of variable first_max_value"
+    )
+hist(
+    observs$first_max_value,
+    breaks = "FD",
+    xlim = c(min(observs$first_max_value), 5),
+    main = "Histogram of variable first_max_value cut off to value 5"
+)
+```
+
+There is single strange value that seems to be an ejection. But it also
+can be result of some exceptional event.
+Values are distributed close to log-normal. Also we can see negative values
+on second plot. It's also very interesting, that second histogram contains
+high bars distanced with some period. It can be some sort of data mix.
+
+Check for amount of negative values:
+
+```{r check observs first_max_value for negative values, echo=TRUE}
+sum(observs$first_max_value<0)
+```
+
+I don't understand why there are negative values. I thought they mustn't be
+present.
+
+And finally I interested to filter non positive values to see how logarithm of
+rest values distributed and check it for normality:
+
+```{r filter logarithm observs first_max_value hist and norm test}
+filtered <- observs$first_max_value[observs$first_max_value>0]
+
+cat(nrow(observs)-length(filtered),
+    "rows with not positive first_max_value removed.\n")
+
+log_filtered <- log(filtered)
+
+hist(log_filtered, breaks = "FD")
+
+ad.test(log_filtered)
+
+rm(filtered, log_filtered)
+```
+
+OK, it's definitely not log-normal and not normal distributions. Data contains
+negative values. And it seems to be a some sort of data mix in whole table.
+**Are negative values dependent of some factor? Measuring method for example.**
+
+#### Feature ```first_max_hour```\
+
+It's discrete. Histogram of it:
+
+```{r observs first_max_hour hist}
+hist(observs$first_max_hour, breaks = "FD")
+```
+
+Distribution isn't uniform-like and there are many observations with
+top CO concentration in the air after midnight. Also many highest values are
+fixed at 7 a.m.
+
+#### Feature ```aqi```\
+
+AQI is Air Quality Index and this variable is not required, so it has NAs. 
+I'will filter NAs. This feature is also discrete quantitative.
+
+```{r observs aqi NA rm, echo=TRUE}
+clear_aqi <- observs$aqi %>% na.exclude
+
+# Part of non-NA values:
+length(clear_aqi) / nrow(observs)
+```
+
+Little more than half. And I think it would be good to look at histogram:
+
+```{r histogram of observs aqi cut off to 100}
+hist(
+    clear_aqi,
+    breaks = "FD",
+    xlim = c(min(clear_aqi), 100),
+    main = "Histogram of aqi cut off to value 100"
+    )
+
+rm(clear_aqi)
+```
+
+Looks like log-normal or exponential. More frequent AQI values from 5 to 15.
+Some values of AQI aren't present - gaps instead bars on histogram.
+
+#### Feature ```date_of_last_change```\
+
+This variable also of class Date:
+
+```{r observs date_of_last_change cast to Date and info, echo=TRUE}
+observs$date_of_last_change <- as.Date(observs$date_of_last_change)
+
+range(observs$date_of_last_change)
+```
+
+Histogram of values by years:
+
+```{r histogram by years of observs date_of_last_change}
+hist(year(observs$date_of_last_change),
+     main = "Histogram of years of date_of_last_change")
+```
+
+Almost all changes were performed at 2016 but appeared in 2010. 
+
+#### Feature ```site_id```\
+
+This variable is relational to table ```sites``` and it histogram of it will
+show numbers of observations in current table per each site. Number of
+observations for each site is dependent from POC unique values for site amount
+(number of CO monitors at site) and period of CO measuring in that site. If
+some site measures CO at 3 monitors for 20 years and other one measures CO for
+10 years at single monitor, then amount of observations at first site would be
+much greater than at second one.
+So how it looks like?
+
+```{r hist for observs site_id}
+observs$site_id %>% as.factor %>% plot(main="Distribution of site_id")
+```
+
+Just a mess. We can notice that some sites made less than 5000 and even 2000
+of observations.
+Let's see sample of observation amounts summaries:
+
+```{r, see counts of site_id}
+sample <- count(observs, site_id)
+
+summarise(sample, 
+          min = min(n), max = max(n), 
+          average = mean(n), st_dev = sd(n), 
+          median = median(n), IQR = IQR(n),
+          quart1 = quantile(n, probs = .25),
+          quart3 = quantile(n, probs = .75),
+          MAD = mad(n))
+```
+
+Minimum is unexpected small - only 8 days, I guess, some site measured data.
+And maximum is pretty big too - it's $23726/365 \approx 65$ years. But data
+contains measurements for almost whole $2018-1990 = 28$ years which is more than
+twice less than 65. So it should be not less than 3 monitors in some site at
+least at some long term.
+OK, average is pretty differs from median. median is much closer to first
+quartile and average is little closer to third quartile, so it pulled by big
+values after third quartile. Standard deviation is pretty big again, that says
+about high variety of observations numbers at sites. 
+
+And, finally, box chart to quick view:
+
+```{r boxplot of observations amounts per site}
+boxplot(sample$n)
+```
+
+Yeah! It looks directly as I imagined. I think, few points over top mustache
+are not ejections.
+
+#### Feature ```method_id```\
+
+There are 22 unique methods and amounts of observations for each method is:
+
+```{r count observs method_id, echo=TRUE}
+sample <- count(observs, method_id)
+sample
 ```
 
 
+Histogram for it is next
+
+```{r hist of method_id}
+observs$method_id %>% as.factor %>%
+    plot(main="Histogram of method_id",
+         xlab = "method_id", ylab = 'Observations amount')
+```
+
+There is high peak at ```method_id == 4```. And id 7 is second by frequency.
+What these methods are? Let's see:
+
+```{r select method_id 4 and 7}
+methods[c(4,7),] %>% select(method_id,
+                            method_code, method_name,
+                            sample_duration, pollutant_standard)
+```
+
+So this most used method is 8-hour measuring. This method wasn't have a name and
+code. Which part of observations occupied by it?
+
+```{r part of 8-hour method from amount of all observations, echo=TRUE}
+sample[4,2] / nrow(observs)
+```
+
+It's interesting because exactly the same part from all observations was
+occupied by AQI with not NA values. I should check:
+
+* **Whether all 1-hour methods has not available AQI**
+* ** Is there any significant differences in measurement distributions between**         **different methods**
+
+That's all for this table.
+
+### Table with Sites information
+
+
+
+
+### Table with Methods information
+
+This table don't gonna contain variate data.
+Fast preview:
+
+```{r methods table preview}
+str(methods)
+```
+
+I will run over quickly.
+
+#### Feature ```method_code```\
+
+Just codes designed to recognize different methods by it. As we found earlier,
+there is single method with Not Available code which match to most frequent
+method with 8-hour measurements.
+
+#### Feature ```method_name```\
+
+This one might be a factor. And amounts om methods with same names are:
+
+```{r, count methods method_name}
+count(methods, method_name)
+```
+
+Method 'INSTRUMENTAL - NONDISPERSIVE INFRARED' (NDIR) has 10 different values
+somehow. And it's friend 'INSTRUMENTAL - NONDISPERSIVE INFRARED PHOTOMETRY' have
+3 different values. Each other names refers to a single method. It can be sort
+of a mistake. Also, value 'Instrumental - Nondispersive Infrered Photometry'
+seems to be equals to previous mentioned but typed with typos and not uppercase.
+
+I should see unique values for all NDIR methods without codes (because they are
+different) to determine whether information differs:
+
+```{r method NDIR uniqueness, echo=TRUE}
+methods %>% select(-method_code, -method_id) %>%
+    filter( grepl(pattern = "NONDISPERSIVE|Nondispersive", method_name)) %>%
+    unique
+
+```
+
+Only 3 methods. So it might be recognized as issue. I have to answer questions:
+
+**Are measurements made with NDIR significantly differs by factor method_code**
+**Inside groups NDIR and NDIR PHOTOMETRY? And hence can same methods with**
+**different codes be merged?**
+
+#### Features ```parameter_code```, ```parameter_name``` and ```units_of_measure```\
+
+This triple of features not actual to be analyzed, because it has single unique
+value:
+
+```{r parameter_code and parameter_name uniques and units_of_measure, echo=TRUE}
+methods %>% select(parameter_code, parameter_name, units_of_measure) %>% unique
+```
+
+#### Features ```sample_duration``` and ```pollutant_standard```\
+
+There is only pair of different values for this pair of variables:
+
+```{r sample_duration and pollutant_standard uniques and count, echo=TRUE}
+methods %>% select(sample_duration, pollutant_standard) %>% unique
+
+count(methods, pollutant_standard)
+```
+
+As we found out earlier, this 8-hour standard occupies little more than half of
+all observations. And it's single method in this table. Really strange.
+
+I guess, that method code could indicate not only method according to the name
+but also the way how measurements was took.
+
+**It would be interesting to run two-way AnoVa on these standards as factors**.
+
+#### Feature ```method_id```
+
+Primary key in this table. The relation variable.

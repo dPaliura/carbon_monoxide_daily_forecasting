@@ -3,6 +3,7 @@ title: "Dataset segmentation"
 author: "Daniel Paliura"
 date: "4/27/2021"
 output: pdf_document
+urlcolor: brown
 ---
 
 ```{r setup, include=FALSE}
