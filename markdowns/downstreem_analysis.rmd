@@ -1,0 +1,227 @@
+---
+title: "Data Analysis of EPA CO Daily Summary"
+author: "Daniel Paliura"
+date: "5/15/2021"
+output: pdf_document
+urlcolor: brown
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Purpose
+
+This document drawn up to research the data in EPA CO Daily Summary data set.
+This research must set up the ground for mathematical model of forecasting
+program. Here I have to find which factors affect on CO amounts measured.
+For example, I expect that location of sites and probably measurements method
+affect values measured. 
+
+I will try to answer questions asked in *Exploratory analysis*, they are bold
+font. And additionally to find some patterns in data.
+
+The main goal is to determine which data I can use in forecasting and how
+models for different factors could differs.
+
+### Questions
+
+1. How amount of measuring sites differs in different years?
+2. Does number of monitors at same sites (unique POC count) changes in time?
+3. Why ```poc``` values 6, 7, and 8 aren't present?
+4. Why there are more values with ```poc``` value 9 than for values 4 and 5?
+5. Whether event at some day is written into each observation at same day?
+6. Whether data significantly differs by event type factor (regression analysis)?
+7. Do events change values in perspective? 
+8. Would exceptional event presence increases forecasts error compared to
+    forecasting without such event?
+9. Why amount of ```observation_percent``` value equals to 8 is greater than
+    amounts of neighbor values 4, 13, 17, 21, 25?
+10. Why feature ```arithmetic_mean``` contains negative values?
+11. Are values of ```arithmetic_mean``` distributed (log)normally for separate 
+    sites/countries/states?
+12. Are negative values of ```first_max_value``` dependent of some factor?
+    Measuring method for example
+13. Whether all 1-hour methods has not available AQI?
+14. Is there any significant differences in measurements distributions between
+    different methods?
+15. How do measured values differs in different states?
+16. Does distributions significantly different by factor ```cbsa_name```?
+17. Are measurements made with NDIR method significantly different by factor
+    ```method_code``` inside groups NDIR and NDIR PHOTOMETRY? And hence can same
+    methods with different codes be merged?
+18. What the result of two-way AnoVa on factor ```polutant_standard```?
+
+## Analysis
+
+### Preparations
+
+I use following R packages:
+
+```{r source libraries}
+library(dplyr, warn.conflicts = FALSE)
+library(lubridate, warn.conflicts = FALSE)
+```
+
+And read data. I will use here data set connected with codes, so I will have
+codes of states and counties and also codes. So I won't be forced to restore
+relations to determine method or state or county.
+
+```{r read data}
+folder <- "../data/parted/by_codes/"
+
+na.strs <- c('NA', '', '-')
+
+obs <- read.csv(paste0(folder,"observations.csv"), na.strings=na.strs)[,-1]
+sit <- read.csv(paste0(folder,'sites.csv'), na.strings=na.strs)[,-1]
+met <- read.csv(paste0(folder,'methods.csv'), na.strings=na.strs)[,-1]
+
+rm(folder, na.strs)
+```
+
+Now let's begin answering the questions.
+
+### Question 1
+
+*How amount of measuring sites differs in different years?*
+
+```{r question 1 answer, echo=FALSE}
+sites_amount_in_years <- obs %>%
+    mutate(year = year(date_local)) %>%
+    group_by(year) %>%
+    summarise(n_sites=n_distinct(state_code, county_code, site_num, datum))
+
+sites_amount_in_years
+
+plot(sites_amount_in_years,
+     ylim = c(0, max(sites_amount_in_years$n_sites)),
+     type = "b", pch = 20,
+     main = "Dependence of measuring sites amounts in different years")
+```
+
+**Number of measuring sites changing from year to year.**
+**First years number of sites was increasing.**
+**After 1996 number of sites begun decreasing.**
+**It declined by third part after 2010 year.**
+
+It would be interesting to see how much sites didn't stop working or
+worked more than half of whole period.
+
+### Question 2
+
+*Does number of monitors at same sites (unique POC count) changes in time?*
+
+To answer this question I have to group all observations by sites and dates and
+count unique ```poc```.
+
+```{r question 2 answer, echo=FALSE}
+n_poc_per_date <- obs %>%
+    group_by(state_code, county_code, site_num, datum, date_local) %>%
+    summarise(n_poc = n_distinct(poc))
+
+n_poc_summary <- n_poc_per_date %>%
+    group_by(state_code, county_code, site_num, datum) %>%
+    summarise(n_min_monitors = min(n_poc),
+              n_max_monitors = max(n_poc))
+
+cat("Preview of monitor amounts summary per sites.\n",
+    "n_min_monitors is minimum number of monitors at the site over the entire period.\n",
+    "n_max_monitors is maximum number of monitors at the site over the entire period.\n",
+    sep="")
+rbind(
+    head(n_poc_summary, 3),
+    tail(n_poc_summary, 3)
+)
+
+cat("Unique values of n_min_monitors:\n")
+unique(n_poc_summary$n_min_monitors)
+cat("Unique values of n_max_monitors:\n")
+unique(n_poc_summary$n_max_monitors)
+
+cat("Next table shows how many sites had had which minimum and maximum of monitors\n")
+n_poc_summary %>% 
+    group_by(n_min_monitors, n_max_monitors) %>%
+    summarise(sites_amount = n())
+
+```
+
+So now we know that
+**number of monitors is changeable, but it's a rare phenomenon**.
+Only 14 of 1299 sites had had maximum 2 monitors through entire period.
+And only 2 sites had had maximum 3 monitors measuring CO.
+It's pretty small amount of monitors.
+
+### Question 3
+
+*Why POC values 6, 7, and 8 aren't present?*
+
+```{r answer to question 3, echo=FALSE}
+sites_with_many_monitors <- n_poc_summary %>%
+    filter(n_max_monitors>1) %>%
+    select(-n_min_monitors)
+
+cond <- logical(nrow(obs))
+for (i in 1:nrow(sites_with_many_monitors)){
+    site <- sites_with_many_monitors[i,]
+    
+    cond <- cond | (obs$state_code  == site$state_code &
+                    obs$county_code == site$county_code &
+                    obs$site_num    == site$site_num &
+                    obs$datum       == site$datum)
+}
+obs_with_many_monitors <- 
+obs_with_singl_monitor <- obs[!cond,]
+
+cat("Unique POC values for sites with single monitor all the time:\n")
+unique(obs$poc[!cond]) 
+
+
+pocs_on_sites <- obs[cond,] %>% 
+    group_by(state_code, county_code, site_num, datum) %>%
+    summarise(poc1 = sort(unique(poc))[1], 
+              poc2 = sort(unique(poc))[2],
+              poc3 = sort(unique(poc))[3],
+              poc4 = sort(unique(poc))[4])
+pocs_on_sites
+
+sit %>% select(state_code, state_name) %>% unique %>%
+    filter(state_code %in% unique(pocs_on_sites$state_code))
+
+cat("Methods used at monitors with POC 9:\n")
+met %>% filter(method_code %in% unique(obs$method_code[obs$poc==9])) %>%
+    select(method_code, method_name, pollutant_standard)
+```
+
+Numbers from 1 through 4 present for sites with single monitor all time and 
+are common for sites with many monitors for CO measuring.
+
+Also, it was 4 monitors through all time at site number 41 present in table.
+And 3 sites has 3 unique POC values, while it was just 2 sites with maximum 3
+monitors at the same time. I guess, measurements was just transported from one
+monitor to other.
+
+I guess, sites have about fixed numbers of monitors with corresponding fixed
+numbers. For example, I guess, there are 9 or more monitors in two sites at
+California. California is advanced state, they can let such many monitors to
+measure different values. And monitors with number 9 could both be chosen to
+measure CO, probably due to good location or any other reasons. One monitor
+with POC 9 was measuring with uncommon method
+'INSTRUMENTAL - Gas Filter Correlation Teledyne API 300 EU'.
+Probably such a monitor was chosen to experimentalize with method.
+
+I guess presence of second site with CO monitor number 9 is randomness.
+And **POC numbers 6, 7, and 8 aren't present because it wasn't a case**.
+
+### Question 4
+
+*Why there are more values with poc value 9 than for values 4 and 5?*
+
+**POC 9 is more frequent than 5 because POC 5 is pretty randomly appeared and**
+**at single site.**
+
+POC 9 also was used in California to measure CO with as one of main monitors.
+Monitor number 4 could be secondary at sites where it present.
+
+### Question 5
+
+*Whether event at some day is written into each observation at same day?*
