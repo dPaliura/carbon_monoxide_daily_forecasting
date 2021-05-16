@@ -7,7 +7,7 @@ urlcolor: brown
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, message = FALSE)
 ```
 
 ## Purpose
@@ -32,7 +32,7 @@ models for different factors could differs.
 4. Why there are more values with ```poc``` value 9 than for values 4 and 5?
 5. Whether event at some day is written into each observation at same day?
 6. Whether data significantly differs by event type factor (regression analysis)?
-7. Do events change values in perspective? 
+7. Do events change values in perspective?
 8. Would exceptional event presence increases forecasts error compared to
     forecasting without such event?
 9. Why amount of ```observation_percent``` value equals to 8 is greater than
@@ -41,7 +41,6 @@ models for different factors could differs.
 11. Are values of ```arithmetic_mean``` distributed (log)normally for separate 
     sites/countries/states?
 12. Are negative values of ```first_max_value``` dependent of some factor?
-    Measuring method for example
 13. Whether all 1-hour methods has not available AQI?
 14. Is there any significant differences in measurements distributions between
     different methods?
@@ -60,6 +59,7 @@ I use following R packages:
 
 ```{r source libraries}
 library(dplyr, warn.conflicts = FALSE)
+library(tidyr, warn.conflicts = FALSE)
 library(lubridate, warn.conflicts = FALSE)
 ```
 
@@ -97,6 +97,8 @@ plot(sites_amount_in_years,
      ylim = c(0, max(sites_amount_in_years$n_sites)),
      type = "b", pch = 20,
      main = "Dependence of measuring sites amounts in different years")
+
+rm(sites_amount_in_years)
 ```
 
 **Number of measuring sites changing from year to year.**
@@ -114,7 +116,7 @@ worked more than half of whole period.
 To answer this question I have to group all observations by sites and dates and
 count unique ```poc```.
 
-```{r question 2 answer, echo=FALSE}
+```{r question 2 answer, echo=FALSE, message=FALSE}
 n_poc_per_date <- obs %>%
     group_by(state_code, county_code, site_num, datum, date_local) %>%
     summarise(n_poc = n_distinct(poc))
@@ -143,6 +145,7 @@ n_poc_summary %>%
     group_by(n_min_monitors, n_max_monitors) %>%
     summarise(sites_amount = n())
 
+rm(n_poc_per_date)
 ```
 
 So now we know that
@@ -155,7 +158,7 @@ It's pretty small amount of monitors.
 
 *Why POC values 6, 7, and 8 aren't present?*
 
-```{r answer to question 3, echo=FALSE}
+```{r answer to question 3, echo=FALSE, message=FALSE}
 sites_with_many_monitors <- n_poc_summary %>%
     filter(n_max_monitors>1) %>%
     select(-n_min_monitors)
@@ -169,8 +172,6 @@ for (i in 1:nrow(sites_with_many_monitors)){
                     obs$site_num    == site$site_num &
                     obs$datum       == site$datum)
 }
-obs_with_many_monitors <- 
-obs_with_singl_monitor <- obs[!cond,]
 
 cat("Unique POC values for sites with single monitor all the time:\n")
 unique(obs$poc[!cond]) 
@@ -190,6 +191,8 @@ sit %>% select(state_code, state_name) %>% unique %>%
 cat("Methods used at monitors with POC 9:\n")
 met %>% filter(method_code %in% unique(obs$method_code[obs$poc==9])) %>%
     select(method_code, method_name, pollutant_standard)
+
+rm(sites_with_many_monitors, cond, site, i)
 ```
 
 Numbers from 1 through 4 present for sites with single monitor all time and 
@@ -225,3 +228,154 @@ Monitor number 4 could be secondary at sites where it present.
 ### Question 5
 
 *Whether event at some day is written into each observation at same day?*
+
+Following table contains amount of present event types for some days when
+some event took place:
+
+```{r couted event types per each day, echo=FALSE}
+events_by_date_counts <- obs %>%
+    count(date_local, event_type)%>%
+    spread(event_type, n, fill=0)
+
+notNoneEvents_by_date_counts <- events_by_date_counts %>%
+    filter(Included>0 | Excluded >0)
+
+head(notNoneEvents_by_date_counts, 10)
+```
+
+We see that numbers of Excluded, Included and None are different.
+So **Event at some day is not written for each observation in same day**.
+
+### Question 6
+
+*Whether data significantly differs by event type factor (regression analysis)?*
+
+Let's see several box charts for different ```event_type``` factors.
+
+```{r boxplot for CO measures by groups, echo=FALSE}
+boxplot(arithmetic_mean ~ event_type, data = obs,
+        main = "Box charts of arithmetic_mean for different even_type")
+
+boxplot(first_max_value ~ event_type, data = obs,
+        main = "Box charts of first_max_value for different even_type")
+
+boxplot(first_max_hour ~ event_type, data = obs,
+        main = "Box charts of first_max_hour for different even_type")
+```
+
+There is notable difference in each triple of box charts. Mustaches and boxes
+are placed at different level. Despite charts are very flatten, it's notable
+that measures ```arithmetic_mean``` and ```first_max_value``` have much flatter
+boxes and mustaches, therefore variety, in group ```Included``` than for both
+other groups, and pair of other groups looks pretty similar, in spite of very
+different amount of points over top mustache. I should see variances in groups
+and also average values. If variances are different, then I can't use ANOVA to
+compare averages.
+
+Variances (```var(...)```) and average values (```mean(...)```) of measure
+variables by groups are represented in following table:
+
+```{r variances and averages in groups, echo=FALSE}
+obs %>% group_by(event_type) %>%
+    summarise(
+        var(arithmetic_mean),
+        var(first_max_value),
+        var(first_max_hour),
+        mean(arithmetic_mean),
+        mean(first_max_value),
+        mean(first_max_hour)
+    )
+```
+
+Clearly, variances in first and third groups are much closer each to other than
+to the second group.
+
+```{r tests for mean comparisons, echo=FALSE}
+obs_without_included_event <- obs %>% filter(event_type != "Included")
+obs_without_excluded_event <- obs %>% filter(event_type != "Excluded")
+
+cat("Comparison of event groups 'Excluded' and 'None'")
+wilcox.test(arithmetic_mean ~ event_type,
+            data = obs_without_included_event)
+wilcox.test(first_max_value ~ event_type,
+            data = obs_without_included_event)
+wilcox.test(first_max_hour ~ event_type,
+            data = obs_without_included_event)
+
+cat("Comparison of event groups 'Included' and 'None'")
+wilcox.test(arithmetic_mean ~ event_type,
+            data = obs_without_excluded_event)
+wilcox.test(first_max_value ~ event_type,
+            data = obs_without_excluded_event)
+wilcox.test(first_max_hour ~ event_type,
+            data = obs_without_excluded_event)
+
+rm(obs_without_included_event, obs_without_excluded_event)
+```
+
+p-values are about zero in all cases, except second and third ones, so
+alternative hypothesis is not rejected for these cases. That means mean values
+are significantly different.
+
+**All CO measures are significantly different by event_type factor.**
+**Factor event_type should be considered in model.**
+
+There is an absence of very significant difference for feature
+```first_max_value``` in groups 'Excluded' and 'None'. 
+And also there is no significant difference between same groups for feature 
+```first_max_hour```.
+ 
+I can choose different parameters of forecasting method when
+period contains exceptional events.
+
+
+### \\Questions 7-8
+
+*Do events change values in perspective?*
+
+*Would exceptional event presence increases forecasts error compared to*
+*forecasting without such event?*
+
+I don't wanna answer these questions today.
+
+### \\Quession 9
+
+### \\Quession 10
+
+*Why feature arithmetic_mean contains negative values?*
+
+```{r}
+obs_neg_arithMean <- obs %>% filter(arithmetic_mean < 0)
+
+obs_neg_arithMean %>% 
+    select(-date_local, -date_of_last_change) %>%
+    unique
+
+range(obs_neg_arithMean$date_local)
+unique(obs_neg_arithMean$event_type)
+unique(obs_neg_arithMean$method_code)
+
+```
+
+### \\Quession 11
+
+### \\Quession 12
+
+Let's found out whether arithmetic mean with negative values covers all the
+negative values of first_max_value. To check it I combine all negative
+arithmetic means and first_max_value. Then I check if there are any positive
+first_max_value, and similar check any positive arithmetic mean
+
+```{r}
+cor(obs %>% select(arithmetic_mean, first_max_value, first_max_hour))
+
+negatives <- obs %>% filter(arithmetic_mean < 0 | first_max_value < 0)
+any(negatives$first_max_value > 0)
+any(negatives$arithmetic_mean > 0)
+max(negatives$arithmetic_mean)
+```
+
+All values of arithmetic mean are negative, so they covers all negative values
+of first_max_value.
+
+### Question 13
