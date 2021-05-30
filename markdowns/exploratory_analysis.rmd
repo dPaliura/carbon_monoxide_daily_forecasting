@@ -28,8 +28,8 @@ I will explore variables from each table separately.
 I use following R packages:
 
 ```{r source libraries, echo=TRUE}
-library(dplyr, quietly = TRUE)
-library(lubridate, quietly = TRUE)
+library(dplyr, warn.conflicts = FALSE)
+library(lubridate, warn.conflicts = FALSE)
 library(nortest)
 ```
 
@@ -177,6 +177,7 @@ And almost all exceptional events include measurements taken during events took
 place. So information about events mostly fixed in data set. Overwhelming
 majority of observations was taken at normal days without exceptional events.
 **It would be interesting to check next:**
+
 * **Whether event at some day is written into each observation at same day**
 * **Whether data significantly differs by event type factor**
     **(regression analysis)**
@@ -342,6 +343,7 @@ boxplot(
     observs$first_max_value,
     main = "Boxplot of variable first_max_value"
     )
+
 hist(
     observs$first_max_value,
     breaks = "FD",
@@ -536,8 +538,9 @@ sample[4,2] / nrow(observs)
 It's interesting because exactly the same part from all observations was
 occupied by AQI with not NA values. I should check:
 
-* **Whether all 1-hour methods has not available AQI**
-* ** Is there any significant differences in measurement distributions between**         **different methods**
+* **Whether all 1-hour methods has not available AQI?**
+* **Is there any significant differences in measurement distributions between**
+    **different methods?**
 
 That's all for this table.
 
@@ -722,7 +725,7 @@ methods %>% select(-method_code, -method_id) %>%
 Only 3 methods. So it might be recognized as issue. I have to answer questions:
 
 **Are measurements made with NDIR significantly differs by factor method_code**
-**Inside groups NDIR and NDIR PHOTOMETRY? And hence can same methods with**
+**inside groups NDIR and NDIR PHOTOMETRY? And hence can same methods with**
 **different codes be merged?**
 
 #### Features ```parameter_code```, ```parameter_name``` and ```units_of_measure```\

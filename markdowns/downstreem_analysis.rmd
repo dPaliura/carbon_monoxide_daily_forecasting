@@ -61,6 +61,7 @@ I use following R packages:
 library(dplyr, warn.conflicts = FALSE)
 library(tidyr, warn.conflicts = FALSE)
 library(lubridate, warn.conflicts = FALSE)
+library(nortest)
 ```
 
 And read data. I will use here data set connected with codes, so I will have
@@ -329,37 +330,106 @@ I can choose different parameters of forecasting method when
 period contains exceptional events.
 
 
-### \\Questions 7-8
-
-*Do events change values in perspective?*
-
-*Would exceptional event presence increases forecasts error compared to*
-*forecasting without such event?*
-
-I don't wanna answer these questions today.
-
-### \\Quession 9
-
-### \\Quession 10
+### Quession 10
 
 *Why feature arithmetic_mean contains negative values?*
 
-```{r}
+```{r, echo=FALSE}
 obs_neg_arithMean <- obs %>% filter(arithmetic_mean < 0)
 
-obs_neg_arithMean %>% 
+someHELL <- obs_neg_arithMean %>% 
     select(-date_local, -date_of_last_change) %>%
     unique
-
-range(obs_neg_arithMean$date_local)
-unique(obs_neg_arithMean$event_type)
-unique(obs_neg_arithMean$method_code)
-
 ```
 
-### \\Quession 11
+### Quession 11
 
-### \\Quession 12
+*Are values of arithmetic_mean distributed (log)normally for separate*
+*sites/counties/states?*
+
+Let's start from states:
+
+```{r}
+# Check for states
+states <- sit %>% select(state_code, state_name) %>%
+    unique %>%
+    arrange(state_code)
+
+tbl1 <- cbind(states,
+             ad_normTest_pvalue = NA,
+             ad_lognormTest_pvalue = NA)
+
+for (i in 1:nrow(states)){
+    st_code <- states$state_code[i]
+    state_arithmetic_mean <- obs$arithmetic_mean[obs$state_code==st_code]
+    
+    tst <- ad.test(state_arithmetic_mean)
+    tbl1$ad_normTest_pvalue[i] <- tst$p.value
+    
+    tst <- ad.test(log(1 + state_arithmetic_mean))
+    tbl1$ad_lognormTest_pvalue[i] <- tst$p.value
+}
+
+cat("Anderson-Darling normality test p-value RANGE for states:\n")
+rbind(
+    arithmetic_mean = range(tbl1$ad_normTest_pvalue),
+    log_arithmetic_mean = range(tbl1$ad_lognormTest_pvalue)
+)
+
+# Check for counties
+counties <- sit %>% select(county_code, county_name) %>%
+    unique %>%
+    arrange(county_code)
+
+tbl2 <- cbind(counties,
+             ad_normTest_pvalue = NA,
+             ad_lognormTest_pvalue = NA)
+
+for (i in 1:nrow(counties)){
+    cnt_code <- counties$county_code[i]
+    county_arithmetic_mean <- obs$arithmetic_mean[obs$county_code==cnt_code]
+    
+    tst <- ad.test(county_arithmetic_mean)
+    tbl2$ad_normTest_pvalue[i] <- tst$p.value
+    
+    tst <- ad.test(log(1 + county_arithmetic_mean))
+    tbl2$ad_lognormTest_pvalue[i] <- tst$p.value
+}
+
+cat("Anderson-Darling normality test p-value RANGE for counties:\n")
+rbind(
+    arithmetic_mean = range(tbl2$ad_normTest_pvalue),
+    log_arithmetic_mean = range(tbl2$ad_lognormTest_pvalue)
+)
+
+# Check for sites
+sites <- sit %>% select(state_code:site_num, datum)
+
+tbl3 <- cbind(sites,
+             ad_normTest_pvalue = NA,
+             ad_lognormTest_pvalue = NA)
+
+for (i in 1:nrow(sites)){
+    site <- sites[i,]
+    site_obs <- obs %>%
+        filter(state_code == site$state_code, 
+               county_code == site$county_code,
+               site_num == site$site_num,
+               datum == site$datum)
+    
+    county_arithmetic_mean <- obs$arithmetic_mean[obs$county_code==cnt_code]
+    
+    tst <- ad.test(county_arithmetic_mean)
+    tbl2$ad_normTest_pvalue[i] <- tst$p.value
+    
+    tst <- ad.test(log(1 + county_arithmetic_mean))
+    tbl2$ad_lognormTest_pvalue[i] <- tst$p.value
+}
+```
+
+So anyway values aren't normally distributed in separate states 
+
+### Quession 12
 
 Let's found out whether arithmetic mean with negative values covers all the
 negative values of first_max_value. To check it I combine all negative
