@@ -39,6 +39,7 @@ sites.df <- read.csv(
     )
 )[,-1]
 
+
 meths.df <- read.csv(
     file = paste0(data.dir, meths.fname),
     colClasses = c(
@@ -55,6 +56,9 @@ getObservationsBySiteID <- function(id, obs = obsvs.df){
 }
 
 
+# Remove some sites placed far far away from continent (Hawaii, Puerto Rico and
+# some site with broken coordinates - 0, 0)
+sites <- filter (latitude > 22)
 
 remained_ids <- NULL
 new_obs <- NULL
