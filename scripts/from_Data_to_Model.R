@@ -1,6 +1,5 @@
 # Libraries I use are here:
 library(dplyr)
-library(fpp2)
 library(lubridate)
 library(forecast)
 
