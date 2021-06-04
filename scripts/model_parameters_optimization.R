@@ -90,11 +90,14 @@ for (id in all_ids){
     ts2 <- obs$arithmetic_mean
     f2 <- function(x) sd(ts2 - theil.wage(ts2, 365, x[1], x[2], x[3])$control)
 
-    opt1 <- optim(par = c(.3, .3, 0), fn = f1,
+    par0 <- c(.3, .3, 0)
+
+    opt1 <- optim(par = par0, fn = f1,
                   method = "L-BFGS-B", lower = 0, upper = 1)
     cat("ID", id, "arithmetic_mean optimised\n")
+    par0 <- opt1$par
 
-    opt2 <- optim(par = c(.3, .3, 0), fn = f2,
+    opt2 <- optim(par = opt1$par, fn = f2,
                   method = "L-BFGS-B", lower = 0, upper = 1)
     cat("ID", id, "first_max_value optimised\n")
 
@@ -109,3 +112,7 @@ names(result) <- res.names
 #   Write result into the file which will be used by app
 ##
 write.csv(result, paste0(data.dir, saved.file.name), row.names = FALSE)
+
+
+#Sys.time()
+cat("Script executed at 2021-06-04 12:28:19")
