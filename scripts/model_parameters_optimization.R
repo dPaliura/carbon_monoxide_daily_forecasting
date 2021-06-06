@@ -80,6 +80,7 @@ res.names <- names(result)
 all_ids <- sort(unique(observations$site_id))
 counter <- 1
 whole <- length(all_ids)
+par0 <- c(.3, .3, 0)
 for (id in all_ids){
     cat(counter, "/", whole, "\n", sep="")
     obs <- getObservationsBySiteID(id)
@@ -89,8 +90,6 @@ for (id in all_ids){
 
     ts2 <- obs$arithmetic_mean
     f2 <- function(x) sd(ts2 - theil.wage(ts2, 365, x[1], x[2], x[3])$control)
-
-    par0 <- c(.3, .3, 0)
 
     opt1 <- optim(par = par0, fn = f1,
                   method = "L-BFGS-B", lower = 0, upper = 1)
@@ -114,5 +113,5 @@ names(result) <- res.names
 write.csv(result, paste0(data.dir, saved.file.name), row.names = FALSE)
 
 
-#Sys.time()
-cat("Script executed at 2021-06-04 12:28:19")
+Sys.time()
+cat("Script executed at 2021-06-06 14:32:01")
