@@ -31,7 +31,7 @@ shinyUI(fluidPage(
             sliderInput("horizon",
                         "Forecast horizon:",
                         min = 1,
-                        max = 700,
+                        max = 730,
                         value = 365,
                         step = 1),
         )
