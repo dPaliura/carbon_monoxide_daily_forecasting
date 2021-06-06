@@ -2,7 +2,6 @@
 #   Packages used in app model
 ##
 library(dplyr)
-library(forecast)
 library(ggplot2)
 
 
@@ -17,11 +16,6 @@ opt.TW.pars.fname <- "optimal_TW_parameters.csv"
 
 getObservationsBySiteID <- function(id, obs = observations){
     obs %>% filter(site_id==id) %>% arrange(date_local)
-}
-
-
-getModelBySiteId <- function(id, obs = observations, ...){
-    obs <- getObservationsBySiteID
 }
 
 
