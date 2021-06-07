@@ -88,7 +88,7 @@ for (id in all_ids){
     ts1 <- obs$arithmetic_mean
     f1 <- function(x) sd(ts1 - theil.wage(ts1, 365, x[1], x[2], x[3])$control)
 
-    ts2 <- obs$arithmetic_mean
+    ts2 <- obs$first_max_value
     f2 <- function(x) sd(ts2 - theil.wage(ts2, 365, x[1], x[2], x[3])$control)
 
     opt1 <- optim(par = par0, fn = f1,
@@ -114,4 +114,4 @@ write.csv(result, paste0(data.dir, saved.file.name), row.names = FALSE)
 
 
 Sys.time()
-cat("Script executed at 2021-06-06 14:32:01")
+# Script executed at 2021-06-06 14:32:01
