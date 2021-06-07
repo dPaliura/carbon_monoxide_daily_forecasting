@@ -1,5 +1,5 @@
 library(dplyr)
-
+library(MLmetrics)
 
 ##
 #   Some constants and functions
@@ -67,14 +67,11 @@ cat("Observations data set loaded\n")
 ##
 #
 # Here is the resulting table to be written
-result <- data.frame(site_id = numeric(),
-                     arithmean_level_par  = numeric(0),
-                     arithmean_season_par = numeric(0),
-                     arithmean_trend_par  = numeric(0),
-                     firstmax_level_par  = numeric(0),
-                     firstmax_season_par = numeric(0),
-                     firstmax_trend_par  = numeric(0))
-res.names <- names(result)
+result <- NULL
+res.names <- c("site_id",
+               "arithmean_level_par", "arithmean_season_par", "arithmean_trend_par",
+               "firstmax_level_par", "firstmax_season_par", "firstmax_trend_par",
+               "rmse_arithmean", "rmse_firstmax")
 
 
 all_ids <- sort(unique(observations$site_id))
@@ -86,10 +83,10 @@ for (id in all_ids){
     obs <- getObservationsBySiteID(id)
 
     ts1 <- obs$arithmetic_mean
-    f1 <- function(x) sd(ts1 - theil.wage(ts1, 365, x[1], x[2], x[3])$control)
+    f1 <- function(x) RMSE(theil.wage(ts1, 365, x[1], x[2], x[3])$control, ts1)
 
     ts2 <- obs$first_max_value
-    f2 <- function(x) sd(ts2 - theil.wage(ts2, 365, x[1], x[2], x[3])$control)
+    f2 <- function(x) RMSE(theil.wage(ts2, 365, x[1], x[2], x[3])$control, ts2)
 
     opt1 <- optim(par = par0, fn = f1,
                   method = "L-BFGS-B", lower = 0, upper = 1)
@@ -100,7 +97,7 @@ for (id in all_ids){
                   method = "L-BFGS-B", lower = 0, upper = 1)
     cat("ID", id, "first_max_value optimised\n")
 
-    result <- rbind(result, c(id, opt1$par, opt2$par))
+    result <- rbind(result, c(id, opt1$par, opt2$par, opt1$value, opt2$value))
 
     counter <- counter + 1
 }
@@ -114,4 +111,4 @@ write.csv(result, paste0(data.dir, saved.file.name), row.names = FALSE)
 
 
 Sys.time()
-# Script executed at 2021-06-06 14:32:01
+# Script executed at 2021-06-07 20:03:01
