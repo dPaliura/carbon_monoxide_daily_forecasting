@@ -9,6 +9,7 @@ data.dir <- "app/CO_level_forecast/data/"
 obsvs.fname <- "observations.csv"
 optpars.fname <- "optimal_TW_parameters.csv"
 
+
 observations <- read.csv(
     file = paste0(data.dir, obsvs.fname))
 cat("Observations data set loaded\n")
@@ -76,11 +77,16 @@ all_ids <- sort(unique(observations$site_id))
 counter <- 1
 whole <- length(all_ids)
 res <- NULL
-colnames <- c("rmse_am_train", "rmse_fmv_train",
+colnames <- c("site_id",
+              "rmse_am_train", "rmse_fmv_train",
               "rmse_am_test", "rmse_fmv_test",
-              "rmse_am_test_nointerp", "rmse_fmv_test_nointerp")
+              "rmse_am_test_nointerp", "rmse_fmv_test_nointerp",
+              "min_am", "min_fmv",
+              "max_am", "max_fmv",
+              "train_size", "test_nointerp_part")
 for (id in all_ids){
     cat(counter, "/", whole, "\n", sep="")
+
     obs <- getObservationsBySiteID(id)
     optpars <- TWpars[TWpars$site_id == id , ]
 
@@ -108,21 +114,31 @@ for (id in all_ids){
     err2 <- test2 - pred2
 
     res <- rbind(res,
-                 c(RMSE(TWmod1$control, train1), RMSE(TWmod2$control, train2),
+                 c(id,
+                   RMSE(TWmod1$control, train1), RMSE(TWmod2$control, train2),
                    RMSE(pred1, test1), RMSE(pred2, test2),
                    RMSE(pred1[test_nointerp_indx], test1[test_nointerp_indx]),
-                   RMSE(pred2[test_nointerp_indx], test2[test_nointerp_indx])
+                   RMSE(pred2[test_nointerp_indx], test2[test_nointerp_indx]),
+                   nrow(train), length(test_nointerp_indx)/365
                    ))
 
     counter <- counter + 1
 }
 colnames(res) <- colnames
+res <- as.data.frame(res)
 
 
 ##
 #   Summarize result
 ##
-summary(res)
+summary(res[,-1])
+# summarize variety of values by sites
+observations %>%
+    group_by(site_id) %>%
+    summarise(min_am=min(arithmetic_mean), min_fmv=min(first_max_value),
+              max_am=max(arithmetic_mean), max_fmv=max(first_max_value)) %>%
+    select(-site_id) %>%
+    summary
 
 Sys.time()
-#Script executed at 2021-06-06 14:32:01
+#Script executed at 2021-06-08 18:40:25
