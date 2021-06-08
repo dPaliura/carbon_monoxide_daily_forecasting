@@ -117,8 +117,8 @@ shinyServer(function(input, output) {
                legend = c(
                    "Arithmetic mean known", "Arithmetic mean predicted",
                    "First max value known", "First max value predicted",
-                   paste("Arithmetic mean SDE is", sde.AM),
-                   paste("First max value SDE is", sde.FMV)
+                   paste("Arithmetic mean RMSE is", sde.AM),
+                   paste("First max value RMSE is", sde.FMV)
                ),
                col = c("black", "blue", "red", "purple", NA, NA),
                pch = NA, lwd = c(1, 1, 1, 1, NA, NA),
